@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\kusje\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-kusje-OneDrive-Desktop-Website-Website\\\\6e9fcc7e-706a-49bd-b936-d03762937198\\\\scratchpad\\\\resize-photos.ps1\")",
+      "PowerShell($hash = [System.Security.Cryptography.SHA256]::Create\\(\\).ComputeHash\\([System.Text.Encoding]::UTF8.GetBytes\\(\"calvinvera\"\\)\\); \\($hash | ForEach-Object { $_.ToString\\(\"x2\"\\) }\\) -join \"\")",
+      "PowerShell($hash = [System.Security.Cryptography.SHA256]::Create\\(\\).ComputeHash\\([System.Text.Encoding]::UTF8.GetBytes\\(\"calvinvera\"\\)\\); $hex = \\($hash | ForEach-Object { $_.ToString\\(\"x2\"\\) }\\) -join \"\"; Write-Output $hex; Write-Output $hex.Length)"
+    ]
+  }
+}
