@@ -25,7 +25,7 @@
     "profile.exp3.role": { en: "Head of Operations & Data Analyst", nl: "Head of Operations & Data Analist" },
     "profile.exp3.desc": { en: "Calvin was responsible for operations and the operations management team at TringTring during a period of rapid scaling. He optimized processes, managed a network of 300 bike couriers, and analyzed data to develop strategies and increase revenue. He also built dashboards and reports for financial overview, network planning, and performance monitoring, further supporting the organization's growth and efficiency.", nl: "Calvin was verantwoordelijk voor de operaties en het operationele managementteam bij TringTring tijdens een dynamische opschalingsfase. Hij optimaliseerde processen, beheerde een netwerk van 300 fietskoeriers en analyseerde data om strategieën te ontwikkelen en omzet te verhogen. Daarnaast bouwde hij dashboards en rapporten voor financieel overzicht, netwerkplanning en prestatiemonitoring, waarmee hij de groei en efficiëntie van de organisatie verder ondersteunde." },
 
-    "profile.section.education": { en: "Education", nl: "Opleiding" },
+    "profile.section.education": { en: "Education and Certificates", nl: "Opleiding en Certificaten" },
     "profile.edu1.org": { en: "Amsterdam University of Applied Sciences", nl: "Hogeschool van Amsterdam" },
     "profile.edu2.org": { en: "Secondary School", nl: "Middelbare School" },
 
