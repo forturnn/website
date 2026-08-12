@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en" class="gate-locked">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Tracker — Calvin Fung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/gate.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a href="index.html#top" class="brand">CALVIN<span class="brand-mark">·</span></a>
+    <nav class="main-nav">
+      <a href="index.html#projects">Catalog</a>
+      <a href="index.html#about">About</a>
+      <a href="profile.html">Profile</a>
+      <a href="index.html#contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="section wrap gallery-header">
+    <a href="index.html#projects" class="back-link">&larr; Back to catalog</a>
+    <h2 class="section-heading"><span class="section-index">014</span> Game Tracker</h2>
+    <p class="section-sub">A Pitched Boss drop diary for my MapleStory progress log — kills, drop rates, and every drop logged.</p>
+  </section>
+
+  <section class="section wrap tracker-section">
+    <div class="lock-bar">
+      <button type="button" class="diary-btn" id="lock-btn">🔒 Locked — click to unlock</button>
+      <form id="unlock-form" class="unlock-form" hidden>
+        <input type="password" id="unlock-input" placeholder="Password" autocomplete="off">
+        <button type="submit" class="diary-btn">Unlock</button>
+        <button type="button" class="diary-btn" id="unlock-cancel">Cancel</button>
+      </form>
+      <p id="unlock-error" class="unlock-error"></p>
+    </div>
+
+    <div class="diary-toolbar">
+      <button type="button" class="diary-btn" id="export-btn">Download backup</button>
+      <button type="button" class="diary-btn" id="import-btn">Load backup</button>
+      <input type="file" id="import-file" accept="application/json" hidden>
+      <button type="button" class="diary-btn" id="merge-import-btn">Merge log entries</button>
+      <input type="file" id="merge-import-file" accept="application/json" hidden>
+      <button type="button" class="diary-btn is-danger" id="clear-btn">Clear diary</button>
+    </div>
+
+    <div class="diary-stats">
+      <div class="stat-card">
+        <p class="stat-label">Last drop</p>
+        <p class="stat-value" id="stat-last-drop">—</p>
+      </div>
+      <div class="stat-card">
+        <p class="stat-label">Days dry</p>
+        <p class="stat-value" id="stat-days-dry">—</p>
+      </div>
+      <div class="stat-card">
+        <p class="stat-label">Avg. pitch / week</p>
+        <p class="stat-value" id="stat-avg-week">—</p>
+      </div>
+    </div>
+
+    <p class="log-empty" id="auto-kill-note"></p>
+
+    <div class="table-scroll">
+      <table class="diary-table">
+        <thead>
+          <tr>
+            <th class="sort-th" data-sort="boss">Boss</th>
+            <th class="sort-th" data-sort="item">Item</th>
+            <th class="sort-th" data-sort="kills">Kills</th>
+            <th class="sort-th" data-sort="cadence">Cadence</th>
+            <th class="sort-th" data-sort="drops">Drops</th>
+            <th class="sort-th" data-sort="received">Received</th>
+            <th class="sort-th" data-sort="rate">Drop rate</th>
+            <th class="sort-th" data-sort="lastDrop">Last drop</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="items-tbody"></tbody>
+        <tbody>
+          <tr class="add-row">
+            <td><input type="text" id="add-boss" placeholder="Boss"></td>
+            <td><input type="text" id="add-item" placeholder="Item"></td>
+            <td><input type="number" id="add-kills" placeholder="0" min="0"></td>
+            <td>
+              <select id="add-cadence">
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </td>
+            <td><input type="number" id="add-drops" placeholder="0" min="0"></td>
+            <td><input type="number" id="add-received" placeholder="0" min="0"></td>
+            <td></td>
+            <td><input type="date" id="add-lastdrop"></td>
+            <td><button type="button" class="icon-btn" id="add-item-btn" title="Add item to track">＋</button></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>Total</td>
+            <td></td>
+            <td id="total-kills">0</td>
+            <td></td>
+            <td id="total-drops">0</td>
+            <td id="total-received">0</td>
+            <td id="total-rate">—</td>
+            <td></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section class="section wrap tracker-section">
+    <h3 class="profile-heading">Log a pull</h3>
+    <form class="entry-form" id="entry-form">
+      <div class="form-field">
+        <label for="entry-boss">Boss</label>
+        <input type="text" id="entry-boss" list="boss-options" required>
+      </div>
+      <div class="form-field">
+        <label for="entry-item">Item</label>
+        <input type="text" id="entry-item" list="item-options" required>
+      </div>
+      <div class="form-field">
+        <label for="entry-received">Received</label>
+        <select id="entry-received">
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="entry-date">Date</label>
+        <input type="date" id="entry-date" required>
+      </div>
+      <div class="form-field">
+        <button type="submit" class="diary-btn" id="entry-submit-btn">Log entry</button>
+      </div>
+    </form>
+    <datalist id="boss-options"></datalist>
+    <datalist id="item-options"></datalist>
+  </section>
+
+  <section class="section wrap tracker-section">
+    <h3 class="profile-heading">Logs</h3>
+    <div class="table-scroll">
+      <table class="diary-table">
+        <thead><tr><th>Date</th><th>Drop</th><th>Outcome</th><th></th></tr></thead>
+        <tbody id="log-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer id="contact" class="site-footer">
+  <div class="wrap footer-inner">
+    <div>
+      <p class="footer-label">Contact</p>
+      <a class="footer-email" href="mailto:calvinfungzakelijk@gmail.com">calvinfungzakelijk@gmail.com</a>
+    </div>
+    <p class="footer-note">© 2026 Calvin Fung</p>
+  </div>
+</footer>
+
+<script src="js/pitch-diary.js"></script>
+
+</body>
+</html>

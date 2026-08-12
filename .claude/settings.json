@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"console.log\\(1\\)\")",
+      "Bash(command -v magick)",
+      "Bash(command -v convert)",
+      "Bash(command -v cwebp)",
+      "Bash(command -v ffmpeg)",
+      "Bash(\"/c/WINDOWS/system32/convert\")"
+    ]
+  }
+}
