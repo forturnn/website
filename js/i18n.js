@@ -10,7 +10,6 @@
 
     "profile.section.business": { en: "Business Profile", nl: "Bedrijfsprofiel" },
     "profile.business.text": { en: "Calvin is an experienced data analyst with a background in aviation and consultancy. He has hands-on experience and a passion for using data tools such as Power BI, SQL, and Python to make data insightful and to optimize processes. He excels at structuring and modeling information to identify areas for improvement, primarily through dashboards and analysis. Structured, organized, and proactive, he brings order and calm to any team, taking ownership and delivering results even in high-pressure situations.", nl: "Calvin is een ervaren data-analist met een achtergrond in luchtvaart en consultancy. Hij heeft ervaring en passie voor het gebruik van data tools zoals Power BI, SQL en Python om data inzichtelijk te maken en processen te optimaliseren. Hij kan informatie goed structureren en modelleren om optimalisatiepunten te identificeren, voornamelijk door middel van dashboards en analyses. Gestructureerd, georganiseerd en met een proactieve houding brengt hij rust en orde binnen elk team, waarbij hij verantwoordelijkheid neemt en resultaten behaalt, zelfs in stressvolle situaties." },
-    "profile.ledger.phone.dt": { en: "Phone", nl: "Telefoon" },
 
     "profile.section.experience": { en: "Work Experience", nl: "Werkervaring" },
 
