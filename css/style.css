@@ -627,13 +627,6 @@ a { color: inherit; text-decoration: none; }
 .tracker-section { padding-top: 32px; }
 .tracker-section + .tracker-section { padding-top: 56px; }
 
-.lock-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
 .unlock-form {
   display: flex;
   align-items: center;
@@ -658,11 +651,13 @@ a { color: inherit; text-decoration: none; }
 
 .diary-toolbar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: flex-start;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
+.diary-toolbar:last-of-type { margin-bottom: 20px; }
 .diary-btn {
   display: inline-block;
   background: transparent;
