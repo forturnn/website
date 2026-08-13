@@ -138,14 +138,10 @@
   <section class="section wrap tracker-section">
     <h3 class="profile-heading">History</h3>
     <div class="diary-toolbar">
-      <div class="form-field">
-        <label for="history-from">From</label>
-        <input type="date" id="history-from">
-      </div>
-      <div class="form-field">
-        <label for="history-to">To</label>
-        <input type="date" id="history-to">
-      </div>
+      <span class="toolbar-label">From</span>
+      <input type="date" id="history-from" class="toolbar-input" style="width:150px;" aria-label="From">
+      <span class="toolbar-label">To</span>
+      <input type="date" id="history-to" class="toolbar-input" style="width:150px;" aria-label="To">
       <button type="button" class="diary-btn" id="history-clear-btn">Clear filter</button>
     </div>
     <div id="history-list"></div>

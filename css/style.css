@@ -640,7 +640,9 @@ a { color: inherit; text-decoration: none; }
   gap: 8px;
 }
 .unlock-form input {
-  padding: 8px 10px;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 10px;
   border-radius: 6px;
   border: 1px solid rgba(236,228,211,0.2);
   background: rgba(236,228,211,0.04);
@@ -666,13 +668,17 @@ a { color: inherit; text-decoration: none; }
 }
 .diary-toolbar:last-of-type { margin-bottom: 20px; }
 .diary-btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  box-sizing: border-box;
   background: transparent;
   border: 1px solid rgba(236,228,211,0.25);
   color: var(--text-light);
   font-family: var(--font-mono);
   font-size: 12px;
-  padding: 8px 14px;
+  padding: 0 14px;
   border-radius: 6px;
   cursor: pointer;
   transition: border-color 0.15s ease, color 0.15s ease;
@@ -685,7 +691,9 @@ a { color: inherit; text-decoration: none; }
 }
 .toolbar-input {
   width: 120px;
-  padding: 8px 14px;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 14px;
   border-radius: 6px;
   border: 1px solid rgba(236,228,211,0.25);
   background: transparent;

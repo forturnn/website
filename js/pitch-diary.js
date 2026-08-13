@@ -4,6 +4,15 @@
   var EDIT_PASSWORD_HASH = "9e68ae360e4f5833da1cb93ab5b96f76e79e696ee7b5c6409d6db865d3a273ae";
   var DAY_MS = 86400000;
 
+  // ---- cloud sync (Supabase) ----
+  // Same project as the menu planner, separate table. Reads are always
+  // open (so a locked/view-only visit still shows the latest data); writes
+  // reuse the existing edit-lock — there's no separate sync password.
+  var SUPABASE_URL = "https://jhmctzavhpprbokdlbwe.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_0NQ1jx8nVQdTlREiNCkTiw_MJfZTLyU";
+  var SUPABASE_TABLE = "pitch_diary_state";
+  var SUPABASE_ROW_ID = "default";
+
   function sha256(text) {
     var enc = new TextEncoder().encode(text);
     return crypto.subtle.digest("SHA-256", enc).then(function (buf) {
@@ -70,6 +79,7 @@
 
   function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    scheduleRemotePush();
   }
 
   var state = loadState();
@@ -218,6 +228,7 @@
         applyLockState();
         renderItemsTable();
         renderLogs();
+        pushRemoteState();
       } else {
         unlockError.textContent = "Incorrect password.";
         unlockInput.value = "";
@@ -227,6 +238,68 @@
   });
 
   applyLockState();
+
+  // ---- cloud sync wiring ----
+  var syncStatusEl = document.getElementById("sync-status");
+  var pushTimer = null;
+
+  function supabaseHeaders() {
+    return { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY, "Content-Type": "application/json" };
+  }
+
+  function fetchRemoteState() {
+    var url = SUPABASE_URL + "/rest/v1/" + SUPABASE_TABLE + "?id=eq." + SUPABASE_ROW_ID + "&select=data,updated_at";
+    return fetch(url, { headers: supabaseHeaders() })
+      .then(function (res) { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
+      .then(function (rows) { return rows && rows[0] ? rows[0] : null; });
+  }
+
+  function pushRemoteState() {
+    if (!isUnlocked || !syncStatusEl) return;
+    var url = SUPABASE_URL + "/rest/v1/" + SUPABASE_TABLE + "?id=eq." + SUPABASE_ROW_ID;
+    var headers = supabaseHeaders();
+    headers.Prefer = "return=minimal";
+    fetch(url, {
+      method: "PATCH",
+      headers: headers,
+      body: JSON.stringify({ data: state, updated_at: new Date().toISOString() })
+    }).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      syncStatusEl.textContent = "Cloud sync: ✓ saved just now.";
+    }).catch(function () {
+      syncStatusEl.textContent = "Cloud sync: couldn't reach Supabase — this change is only saved on this device for now.";
+    });
+  }
+
+  function scheduleRemotePush() {
+    if (!isUnlocked) return;
+    if (pushTimer) clearTimeout(pushTimer);
+    pushTimer = setTimeout(pushRemoteState, 600);
+  }
+
+  function isMeaningfulRemoteData(data) {
+    if (!data) return false;
+    var hasItems = Array.isArray(data.items) && data.items.length > 0;
+    var hasEntries = Array.isArray(data.entries) && data.entries.length > 0;
+    return hasItems || hasEntries;
+  }
+
+  function initialSync() {
+    if (!syncStatusEl) return;
+    syncStatusEl.textContent = "Checking cloud sync…";
+    fetchRemoteState().then(function (row) {
+      if (!isMeaningfulRemoteData(row && row.data)) {
+        syncStatusEl.textContent = "Cloud sync: nothing saved in the cloud yet" + (isUnlocked ? " — make a change to start syncing." : ".");
+        return;
+      }
+      state = normalizeState(row.data);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      syncStatusEl.textContent = "Cloud sync: ✓ loaded the latest from the cloud.";
+      renderAll();
+    }).catch(function () {
+      syncStatusEl.textContent = "Cloud sync: couldn't reach Supabase — showing what's saved on this device.";
+    });
+  }
 
   // ---- sorting ----
   var sortState = { key: null, dir: "asc" };
@@ -627,4 +700,5 @@
 
   applyAutoKills();
   renderAll();
+  initialSync();
 })();
