@@ -545,11 +545,12 @@
 
   function positionDishPreview(evt) {
     var margin = 16;
+    var boxW = 396, boxH = 336; // matches .dish-preview img max size + border
     var x = evt.clientX + margin, y = evt.clientY + margin;
-    var maxX = window.innerWidth - 256;
-    var maxY = window.innerHeight - 216;
-    if (x > maxX) x = evt.clientX - 256 - margin;
-    if (y > maxY) y = evt.clientY - 216 - margin;
+    var maxX = window.innerWidth - boxW;
+    var maxY = window.innerHeight - boxH;
+    if (x > maxX) x = evt.clientX - boxW - margin;
+    if (y > maxY) y = evt.clientY - boxH - margin;
     dishPreviewEl.style.left = Math.max(8, x) + "px";
     dishPreviewEl.style.top = Math.max(8, y) + "px";
   }
