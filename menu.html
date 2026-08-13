@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en" class="gate-locked">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What's on the menu? — Calvin Fung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/gate.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a href="index.html#top" class="brand">CALVIN<span class="brand-mark">·</span></a>
+    <nav class="main-nav">
+      <a href="index.html#projects">Catalog</a>
+      <a href="index.html#about">About</a>
+      <a href="profile.html">Profile</a>
+      <a href="index.html#contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="section wrap gallery-header">
+    <a href="index.html#projects" class="back-link">&larr; Back to catalog</a>
+    <h2 class="section-heading"><span class="section-index">018</span> What's on the menu?</h2>
+    <p class="section-sub">Generates next week's dinner menu from your recipe database — respecting carb quotas, meat ratios, and how often you want a dish repeated, while avoiding anything eaten recently.</p>
+  </section>
+
+  <!-- ---- Cloud sync ---- -->
+  <section class="section wrap tracker-section" style="padding-bottom: 0;">
+    <div class="diary-toolbar">
+      <button type="button" class="diary-btn" id="sync-lock-btn">🔒 Cloud sync locked — click to unlock</button>
+      <form id="sync-unlock-form" class="unlock-form" hidden>
+        <input type="password" id="sync-unlock-input" placeholder="Password" autocomplete="off">
+        <button type="submit" class="diary-btn">Unlock</button>
+        <button type="button" class="diary-btn" id="sync-unlock-cancel">Cancel</button>
+      </form>
+      <p id="sync-unlock-error" class="unlock-error"></p>
+    </div>
+    <p class="log-empty" id="sync-status">Checking cloud sync…</p>
+  </section>
+
+  <!-- ---- Generate / draft week ---- -->
+  <section class="section wrap tracker-section">
+    <div class="diary-toolbar">
+      <button type="button" class="diary-btn" id="settings-btn">⚙ Settings</button>
+      <span class="toolbar-label">Seed</span>
+      <input type="number" id="seed-input" class="toolbar-input" aria-label="Seed">
+      <button type="button" class="diary-btn" id="randomize-seed-btn" title="Randomize seed">🎲</button>
+      <button type="button" class="diary-btn" id="generate-btn">Generate next week</button>
+      <button type="button" class="diary-btn is-danger" id="confirm-log-btn" disabled>Confirm &amp; Log</button>
+    </div>
+
+    <p class="log-empty" id="ratio-breakdown"></p>
+    <ul class="warning-list" id="warning-list" hidden></ul>
+
+    <div id="recipes-empty-note" class="empty-note" hidden>
+      No recipes yet — add a few in the <a href="#recipes">Recipes</a> section below before generating a menu.
+    </div>
+
+    <div class="table-scroll">
+      <table class="diary-table week-table">
+        <colgroup>
+          <col style="width:90px;">
+          <col style="width:120px;">
+          <col style="width:210px;">
+          <col style="width:90px;">
+          <col style="width:90px;">
+          <col style="width:130px;">
+          <col style="width:190px;">
+          <col style="width:40px;">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>Date</th>
+            <th>Dish</th>
+            <th>Carb</th>
+            <th>Meat</th>
+            <th>Repeatability</th>
+            <th>Pick manually</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="week-tbody">
+          <tr><td colspan="8" class="log-empty">Click "Generate next week" to build a draft menu.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ---- Recipes CRUD ---- -->
+  <section class="section wrap tracker-section" id="recipes">
+    <h3 class="profile-heading">Recipes</h3>
+    <div class="diary-toolbar" style="justify-content: flex-start; margin-bottom: 14px;">
+      <button type="button" class="diary-btn" id="import-recipes-btn">Import recipes</button>
+      <input type="file" id="import-recipes-file" accept="application/json" hidden>
+    </div>
+    <div class="table-scroll">
+      <table class="diary-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Carb category</th>
+            <th>Meat category</th>
+            <th>Repeatability</th>
+            <th>Last served</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="recipes-tbody"></tbody>
+        <tbody>
+          <tr class="add-row">
+            <td><input type="text" id="add-recipe-name" placeholder="Dish name"></td>
+            <td>
+              <select id="add-recipe-carb"></select>
+            </td>
+            <td>
+              <select id="add-recipe-meat"></select>
+            </td>
+            <td>
+              <select id="add-recipe-repeat"></select>
+            </td>
+            <td></td>
+            <td><button type="button" class="icon-btn" id="add-recipe-btn" title="Add recipe">＋</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ---- History ---- -->
+  <section class="section wrap tracker-section">
+    <h3 class="profile-heading">History</h3>
+    <div class="diary-toolbar">
+      <div class="form-field">
+        <label for="history-from">From</label>
+        <input type="date" id="history-from">
+      </div>
+      <div class="form-field">
+        <label for="history-to">To</label>
+        <input type="date" id="history-to">
+      </div>
+      <button type="button" class="diary-btn" id="history-clear-btn">Clear filter</button>
+    </div>
+    <div id="history-list"></div>
+  </section>
+
+</main>
+
+<footer id="contact" class="site-footer">
+  <div class="wrap footer-inner">
+    <div>
+      <p class="footer-label">Contact</p>
+      <a class="footer-email" href="mailto:calvinfungzakelijk@gmail.com">calvinfungzakelijk@gmail.com</a>
+    </div>
+    <p class="footer-note">© 2026 Calvin Fung</p>
+  </div>
+</footer>
+
+<!-- ---- Settings modal ---- -->
+<div class="modal-overlay" id="settings-modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Settings</h3>
+      <button type="button" class="icon-btn" id="settings-close-btn" title="Close">×</button>
+    </div>
+
+    <h4 class="modal-subhead">Carb category quotas <span id="carb-sum-badge" class="validation-badge"></span></h4>
+    <div class="settings-grid" id="carb-quota-grid"></div>
+
+    <h4 class="modal-subhead">Meat category ratios (%) <span id="meat-sum-badge" class="validation-badge"></span></h4>
+    <div class="settings-grid" id="meat-ratio-grid"></div>
+
+    <h4 class="modal-subhead">Repeatability weights</h4>
+    <div class="settings-grid" id="weight-grid"></div>
+
+    <h4 class="modal-subhead">Other</h4>
+    <div class="settings-grid">
+      <div class="form-field">
+        <label for="lookback-input">Lookback window (days)</label>
+        <input type="number" id="lookback-input" min="1">
+      </div>
+      <div class="form-field">
+        <label for="max-new-input">Max "New" dishes / week</label>
+        <input type="number" id="max-new-input" min="0" max="7">
+      </div>
+    </div>
+
+    <div class="diary-toolbar" style="justify-content: space-between;">
+      <button type="button" class="diary-btn" id="settings-reset-btn">Reset to defaults</button>
+      <button type="button" class="diary-btn" id="settings-save-btn">Save &amp; close</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/menu-planner.js"></script>
+
+</body>
+</html>
