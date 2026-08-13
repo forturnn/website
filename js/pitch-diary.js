@@ -284,20 +284,33 @@
     return hasItems || hasEntries;
   }
 
+  // Thursday kills must be computed AFTER pulling the cloud copy down, not
+  // before — otherwise a later-resolving fetch can silently discard a bump
+  // that already ran locally, or two devices opening around the same time
+  // could each compute their own bump from a stale base and stomp on each
+  // other. Syncing first means autoLastRun (itself part of the synced blob)
+  // reflects whatever the most recent device already processed, so a
+  // Thursday only ever gets counted once across all devices.
   function initialSync() {
-    if (!syncStatusEl) return;
+    function finish() {
+      applyAutoKills();
+      renderAll();
+    }
+    if (!syncStatusEl) { finish(); return; }
     syncStatusEl.textContent = "Checking cloud sync…";
     fetchRemoteState().then(function (row) {
       if (!isMeaningfulRemoteData(row && row.data)) {
         syncStatusEl.textContent = "Cloud sync: nothing saved in the cloud yet" + (isUnlocked ? " — make a change to start syncing." : ".");
+        finish();
         return;
       }
       state = normalizeState(row.data);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       syncStatusEl.textContent = "Cloud sync: ✓ loaded the latest from the cloud.";
-      renderAll();
+      finish();
     }).catch(function () {
       syncStatusEl.textContent = "Cloud sync: couldn't reach Supabase — showing what's saved on this device.";
+      finish();
     });
   }
 
@@ -698,7 +711,6 @@
     note.textContent = "Kills tick up automatically every Thursday reset (Black Mage on the first Thursday of the month) — last checked " + formatDate(state.autoLastRun) + ".";
   }
 
-  applyAutoKills();
   renderAll();
   initialSync();
 })();
