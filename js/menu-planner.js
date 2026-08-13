@@ -1,4 +1,5 @@
 (function () {
+  // localStorage key the whole planner (recipes + log + settings) is saved under.
   var STORAGE_KEY = "menu-planner-v1";
   var DAY_MS = 86400000;
 
@@ -13,6 +14,9 @@
   var SYNC_UNLOCK_KEY = "menu_sync_unlocked";
   var SYNC_PASSWORD_HASH = "9e68ae360e4f5833da1cb93ab5b96f76e79e696ee7b5c6409d6db865d3a273ae";
 
+  // Hashes a string with SHA-256 and returns the lowercase hex digest, used
+  // to check the typed passphrase against SYNC_PASSWORD_HASH without ever
+  // comparing or storing the plain text.
   function sha256(text) {
     var enc = new TextEncoder().encode(text);
     return crypto.subtle.digest("SHA-256", enc).then(function (buf) {
@@ -22,6 +26,8 @@
     });
   }
 
+  // The fixed set of valid values for each recipe field — also drives every
+  // <select> and settings input built dynamically below.
   var CARB_CATEGORIES = ["Rice", "Potato", "Noodles", "Pasta", "Wheat", "Congee", "Soup"];
   var MEAT_CATEGORIES = ["Chicken", "Beef", "Fish", "None", "Pork"];
   var REPEAT_LEVELS = ["Regular", "Occasionally", "Rarely", "New"];
@@ -34,6 +40,7 @@
   // outside 14 days but within 21" from the spec.
   var COOLDOWN_MULTIPLIER = { Regular: 1, Occasionally: 1.5, Rarely: 2, New: 2 };
 
+  // The generator's tunable knobs, editable via the Settings modal.
   function defaultSettings() {
     return {
       carbQuotas: { Rice: 4, Potato: 1, Noodles: 1, Pasta: 1, Wheat: 0, Congee: 0, Soup: 0 },
@@ -44,6 +51,8 @@
     };
   }
 
+  // Short unique-enough id for recipes/log entries — good enough for a
+  // single shared dataset, not meant to be globally unique.
   function makeId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
@@ -104,6 +113,7 @@
     { name: "Steak and Fries", carbCategory: "Potato", meatCategory: "Beef", repeatability: "Regular" }
   ];
 
+  // Builds a brand-new state object from DEFAULT_RECIPES, each with a fresh id.
   function defaultState() {
     return {
       recipes: DEFAULT_RECIPES.map(function (r) {
@@ -114,6 +124,9 @@
     };
   }
 
+  // Fills in/repairs fields on state loaded from localStorage or Supabase —
+  // guarantees every settings key exists (merging in any new defaults added
+  // since the data was saved) so older saved data never breaks the app.
   function normalizeState(raw) {
     if (!Array.isArray(raw.recipes)) raw.recipes = [];
     if (!Array.isArray(raw.log)) raw.log = [];
@@ -127,6 +140,8 @@
     return raw;
   }
 
+  // Reads whatever's saved on this device, falling back to a freshly seeded
+  // state (with the default recipe list) if nothing's saved yet.
   function loadState() {
     try {
       var raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -135,6 +150,8 @@
     return defaultState();
   }
 
+  // Persists the current state locally and schedules a push to Supabase
+  // (scheduleRemotePush no-ops on its own if sync isn't unlocked).
   function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     scheduleRemotePush();
@@ -144,24 +161,34 @@
 
   // ---- date helpers ----
   function pad2(n) { return String(n).padStart(2, "0"); }
+  // Local date -> "YYYY-MM-DD".
   function toIso(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  // "YYYY-MM-DD" -> local Date.
   function fromIso(s) { var p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  // "YYYY-MM-DD" -> "DD-MM-YYYY" for display.
   function formatDate(iso) {
     if (!iso) return "—";
     var p = iso.split("-");
     return p[2] + "-" + p[1] + "-" + p[0];
   }
+  // Strips the time portion so date-only comparisons ignore hours/minutes.
   function midnight(d) { var n = new Date(d); n.setHours(0, 0, 0, 0); return n; }
+  // Whole days between two dates (b - a), ignoring time of day.
   function daysBetween(a, b) { return Math.floor((midnight(b) - midnight(a)) / DAY_MS); }
   function addDays(d, n) { var n2 = new Date(d); n2.setDate(n2.getDate() + n); return n2; }
+  // Monday of the week containing d (Sunday counts as the end of the prior week).
   function mondayOf(d) {
     var day = d.getDay();
     var diff = day === 0 ? -6 : 1 - day;
     return midnight(addDays(d, diff));
   }
+  // Monday of the week AFTER d's week — "next week" always means the full
+  // 7-day block after the current calendar week, regardless of what day it is today.
   function nextMondayFrom(d) { return addDays(mondayOf(d), 7); }
 
   // ---- seeded PRNG (mulberry32) ----
+  // Deterministic random generator: same seed always produces the same
+  // sequence, so a generated week can be reproduced by reusing its seed.
   function mulberry32(seed) {
     var s = seed >>> 0;
     return function () {
@@ -171,6 +198,7 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
+  // Fisher-Yates shuffle using the given (optionally seeded) RNG; returns a new array.
   function shuffle(arr, rand) {
     var a = arr.slice();
     for (var i = a.length - 1; i > 0; i--) {
@@ -179,6 +207,8 @@
     }
     return a;
   }
+  // Picks one recipe from pool at random, weighted by each recipe's
+  // repeatability weight (higher weight = more likely to be picked).
   function weightedPick(pool, weights, rand) {
     var total = pool.reduce(function (s, r) { return s + (weights[r.repeatability] || 1); }, 0);
     if (total <= 0) return pool[Math.floor(rand() * pool.length)];
@@ -191,6 +221,10 @@
   }
 
   // ---- quota / ratio expansion ----
+  // Expands carb quotas (e.g. Rice:4, Potato:1, ...) into a flat 7-item
+  // array of carb categories, one per day. Pads with Rice or truncates (with
+  // a warning either way) if the quotas don't add up to exactly 7, so
+  // generation never hard-fails on a misconfigured Settings panel.
   function buildCarbSlots(quotas) {
     var slots = [];
     CARB_CATEGORIES.forEach(function (cat) {
@@ -208,6 +242,12 @@
     return { slots: slots, warnings: warnings };
   }
 
+  // Converts meat ratio percentages into whole-dish counts summing to
+  // totalDays using the largest-remainder method: floor each category's
+  // exact share, then hand out the leftover slots to whichever categories
+  // had the biggest fractional remainder. Also returns a breakdown (used to
+  // show "how this rounded" on the page) and the raw percentage sum (used
+  // to warn if the ratios don't add up to 100).
   function buildMeatSlots(ratios, totalDays) {
     totalDays = totalDays || 7;
     var exact = {}, floorVal = {}, remainder = {}, flooredSum = 0;
@@ -234,6 +274,7 @@
   }
 
   // ---- recipe history helpers ----
+  // Most recent dateServed logged for a recipe, or null if it's never been logged.
   function lastServedDate(recipeId) {
     var latest = null;
     state.log.forEach(function (e) {
@@ -243,6 +284,9 @@
     });
     return latest;
   }
+  // Primary repetition rule: excluded if served within its own cooldown,
+  // where less-repeatable recipes (Rarely/New) get a longer cooldown than
+  // the flat lookback window (see COOLDOWN_MULTIPLIER).
   function isExcludedTiered(r, today, lookbackDays) {
     var last = lastServedDate(r.id);
     if (!last) return false;
@@ -250,6 +294,9 @@
     var cooldown = Math.round(lookbackDays * mult);
     return daysBetween(last, today) < cooldown;
   }
+  // Fallback-tier rule: excluded only if served within the flat lookback
+  // window, ignoring the per-repeatability multiplier — used to relax
+  // "Occasionally" dishes back to the base window when the strict pool is empty.
   function isExcludedFlat(r, today, lookbackDays) {
     var last = lastServedDate(r.id);
     if (!last) return false;
@@ -257,6 +304,18 @@
   }
 
   // ---- core generation ----
+  // Builds one full 7-day draft week for "next week" (Mon–Sun), given a PRNG
+  // seed. High-level steps:
+  //   1. Expand carb quotas and meat ratios into two 7-item slot arrays,
+  //      independently shuffled, then paired up day-by-day.
+  //   2. For each day's (carb, meat) target, try a sequence of eligibility
+  //      pools from strictest to most relaxed (see the `attempts` array
+  //      below) and weighted-randomly pick a recipe from the first
+  //      non-empty one, tracking which recipes are already used this week
+  //      and how many "New" dishes have been used (capped by settings).
+  //   3. Any day that still finds nothing eligible is left unfilled with a
+  //      warning, for the user to fill in manually.
+  // Returns the draft plus a list of warnings explaining any fallback/rounding used.
   function generateWeek(seedValue) {
     var settings = state.settings;
     var rand = mulberry32(seedValue >>> 0);
@@ -282,8 +341,13 @@
 
     pairs.forEach(function (pair, i) {
       var carb = pair.carb, meat = pair.meat;
+      // Eligibility pools tried in order, strictest first. The first
+      // non-empty one wins; tier > 0 means a fallback rule kicked in, which
+      // gets surfaced to the user as a warning.
       var attempts = [
         {
+          // Tier 0: exact carb+meat match, not used elsewhere this week,
+          // not in its repetition cooldown, respects the New-dish cap.
           tier: 0,
           list: state.recipes.filter(function (r) {
             return r.carbCategory === carb && r.meatCategory === meat && !dailyUsedIds[r.id] &&
@@ -291,6 +355,8 @@
           })
         },
         {
+          // Tier 1: relax an Occasionally-tagged dish back to the flat
+          // lookback window instead of its longer tiered cooldown.
           tier: 1,
           msg: "relaxed the repeat window for an Occasionally-repeated dish",
           list: state.recipes.filter(function (r) {
@@ -299,6 +365,7 @@
           })
         },
         {
+          // Tier 2: allow repeating a dish already used earlier this week.
           tier: 2,
           msg: "repeated a dish already used earlier this week",
           list: state.recipes.filter(function (r) {
@@ -307,6 +374,7 @@
           })
         },
         {
+          // Tier 3: drop the meat requirement, keep the carb requirement.
           tier: 3,
           msg: "relaxed the meat ratio for this day",
           list: state.recipes.filter(function (r) {
@@ -315,6 +383,8 @@
           })
         },
         {
+          // Tier 4: drop the meat requirement AND allow a same-week repeat —
+          // last resort before leaving the day unfilled.
           tier: 4,
           msg: "relaxed the meat ratio and repeated a dish used this week",
           list: state.recipes.filter(function (r) {
@@ -349,7 +419,7 @@
         carb: carb,
         meat: meat,
         recipeId: chosen ? chosen.id : null,
-        special: null
+        special: null // set to "order"/"eatout" via the manual picker, never by the generator itself
       });
     });
 
@@ -366,9 +436,13 @@
   var seedInput = document.getElementById("seed-input");
   var confirmBtn = document.getElementById("confirm-log-btn");
 
+  // Bail out if this script somehow loaded on a page without the planner's
+  // markup — everything below assumes these elements exist.
   if (!weekTbody) return;
 
   // ---- cloud sync wiring ----
+  // Reading the cloud copy is always allowed; only pushing changes up
+  // requires unlocking with SYNC_PASSWORD_HASH, remembered per device.
   var isSyncUnlocked = localStorage.getItem(SYNC_UNLOCK_KEY) === "1";
   var syncLockBtn = document.getElementById("sync-lock-btn");
   var syncUnlockForm = document.getElementById("sync-unlock-form");
@@ -376,12 +450,15 @@
   var syncUnlockError = document.getElementById("sync-unlock-error");
   var syncUnlockCancel = document.getElementById("sync-unlock-cancel");
   var syncStatusEl = document.getElementById("sync-status");
+  // Debounce timer for pushRemoteState, so rapid edits don't fire a network request each.
   var pushTimer = null;
 
+  // Common headers for every Supabase REST call.
   function supabaseHeaders() {
     return { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY, "Content-Type": "application/json" };
   }
 
+  // Fetches the single shared row from Supabase (or null if the table's empty).
   function fetchRemoteState() {
     var url = SUPABASE_URL + "/rest/v1/" + SUPABASE_TABLE + "?id=eq." + SUPABASE_ROW_ID + "&select=data,updated_at";
     return fetch(url, { headers: supabaseHeaders() })
@@ -389,6 +466,8 @@
       .then(function (rows) { return rows && rows[0] ? rows[0] : null; });
   }
 
+  // Pushes the entire current state up to Supabase in one PATCH, updating
+  // the status line with the result either way.
   function pushRemoteState() {
     var url = SUPABASE_URL + "/rest/v1/" + SUPABASE_TABLE + "?id=eq." + SUPABASE_ROW_ID;
     var headers = supabaseHeaders();
@@ -405,18 +484,23 @@
     });
   }
 
+  // Called from saveState() after every local change; only actually queues
+  // a push when sync is unlocked, and collapses bursts of saves into one request.
   function scheduleRemotePush() {
     if (!isSyncUnlocked) return;
     if (pushTimer) clearTimeout(pushTimer);
     pushTimer = setTimeout(pushRemoteState, 600);
   }
 
+  // Syncs the lock button's label to the current isSyncUnlocked state.
   function applySyncLockState() {
     syncLockBtn.textContent = isSyncUnlocked
       ? "🔓 Cloud sync unlocked — click to lock"
       : "🔒 Cloud sync locked — click to unlock";
   }
 
+  // Clicking while unlocked re-locks immediately (no password needed);
+  // clicking while locked opens the passphrase form.
   syncLockBtn.addEventListener("click", function () {
     if (isSyncUnlocked) {
       isSyncUnlocked = false;
@@ -435,6 +519,9 @@
     syncUnlockInput.value = "";
     syncUnlockError.textContent = "";
   });
+  // On a correct passphrase: unlock, remember it on this device, and
+  // immediately push — this is what seeds the cloud on the very first
+  // unlock, and syncs any local-only changes after that.
   syncUnlockForm.addEventListener("submit", function (e) {
     e.preventDefault();
     sha256(syncUnlockInput.value).then(function (hash) {
@@ -454,6 +541,9 @@
     });
   });
 
+  // Treats a Supabase row as "worth adopting" only if it actually has
+  // recipes or log entries — an empty/seed row should never wipe out a
+  // device's local data.
   function isMeaningfulRemoteData(data) {
     if (!data) return false;
     var hasRecipes = Array.isArray(data.recipes) && data.recipes.length > 0;
@@ -461,6 +551,9 @@
     return hasRecipes || hasLog;
   }
 
+  // Runs once on page load: pulls the cloud copy down and adopts it (if
+  // meaningful), then re-renders everything so the page reflects the
+  // latest shared data rather than just whatever was cached locally.
   function initialSync() {
     applySyncLockState();
     syncStatusEl.textContent = "Checking cloud sync…";
@@ -478,6 +571,7 @@
     });
   }
 
+  // Tiny DOM-building helper: el("tag", { text, html, className, attrs }).
   function el(tag, opts) {
     var node = document.createElement(tag);
     opts = opts || {};
@@ -487,6 +581,8 @@
     if (opts.attrs) Object.keys(opts.attrs).forEach(function (k) { node.setAttribute(k, opts.attrs[k]); });
     return node;
   }
+  // Fills a <select> with <option>s for each value, optionally with a blank
+  // "— choose —" option first.
   function fillSelect(select, values, withBlank) {
     select.innerHTML = "";
     if (withBlank) select.appendChild(el("option", { text: "— choose —", attrs: { value: "" } }));
@@ -503,10 +599,13 @@
   // up immediately even before anyone resizes it into thumb/.
   var dishImageCache = {}; // slug -> resolved url string, or false if not found
 
+  // Strips characters that aren't valid in filenames, matching how a recipe
+  // name like "Scallop/Shrimp ..." ends up saved as "ScallopShrimp ...".
   function dishSlug(name) {
     return (name || "").replace(/[\\/:*?"<>|]/g, "").trim();
   }
 
+  // Every filename this recipe's photo might be saved as, tried in order.
   function dishImageCandidates(name) {
     var slug = dishSlug(name);
     return [
@@ -520,6 +619,8 @@
     ];
   }
 
+  // Finds (and caches) the first candidate image URL that actually loads
+  // for a given recipe name; calls back with the URL, or false if none exist.
   function resolveDishImage(name, callback) {
     var slug = dishSlug(name);
     if (!slug) { callback(false); return; }
@@ -538,11 +639,15 @@
     tryNext();
   }
 
+  // Single floating preview element reused for every hover, repositioned
+  // and re-sourced on the fly rather than creating one per dish.
   var dishPreviewEl = el("div", { className: "dish-preview" });
   var dishPreviewImg = el("img");
   dishPreviewEl.appendChild(dishPreviewImg);
   document.body.appendChild(dishPreviewEl);
 
+  // Positions the preview near the cursor, flipping to the other side of
+  // the cursor if it would otherwise run off the right/bottom edge.
   function positionDishPreview(evt) {
     var margin = 16;
     var boxW = 396, boxH = 336; // matches .dish-preview img max size + border
@@ -559,6 +664,9 @@
     dishPreviewEl.classList.remove("is-visible");
   }
 
+  // Wires up hover-to-preview on any element that displays a dish name:
+  // shows the photo (if one resolves) on mouseenter, tracks the cursor
+  // while hovering, and hides on mouseleave.
   function attachDishHover(target, name) {
     target.addEventListener("mouseenter", function (e) {
       resolveDishImage(name, function (url) {
@@ -588,6 +696,9 @@
   // ---- recipes CRUD ----
   function findRecipe(id) { return state.recipes.find(function (r) { return r.id === id; }); }
 
+  // Rebuilds the Recipes table body: one editable row per recipe (name,
+  // carb/meat/repeatability selects, last-served date, delete button),
+  // plus the empty-state note when there are no recipes at all.
   function renderRecipesTable() {
     recipesTbody.innerHTML = "";
     recipesEmptyNote.hidden = state.recipes.length > 0;
@@ -624,6 +735,9 @@
         renderWeekTable();
       });
 
+      // Name cell holds the input + the photo badge side by side, inside a
+      // plain <td> — the flex layout lives on the inner wrapper div, never
+      // on the <td> itself (that would break the cell's table layout).
       var nameTd = el("td");
       var nameWrap = el("div", { className: "dish-name-cell" });
       nameWrap.appendChild(nameInput);
@@ -639,6 +753,7 @@
     });
   }
 
+  // ---- add recipe (inline row) ----
   var addRecipeName = document.getElementById("add-recipe-name");
   var addRecipeCarb = document.getElementById("add-recipe-carb");
   var addRecipeMeat = document.getElementById("add-recipe-meat");
@@ -711,6 +826,8 @@
   });
 
   // ---- ratio breakdown text ----
+  // Shows the current meat-ratio rounding live above the week table (e.g.
+  // "Chicken 40% → 2.8 → 3"), independent of whether a week's been generated yet.
   function renderRatioBreakdown() {
     var result = buildMeatSlots(state.settings.meatRatios);
     var parts = result.breakdown.map(function (b) {
@@ -727,6 +844,12 @@
     return r ? r.repeatability : "—";
   }
 
+  // Rebuilds the 7-day draft table. Each row shows the day/date, the dish
+  // (or an Order/Eat-out label, or "unfilled"), its actual carb/meat
+  // category (not the original generation target, so it stays accurate
+  // after a manual override or reroll lands on something different), a
+  // manual-pick dropdown, and a reroll button. Falls back to a single
+  // placeholder row when there's no draft yet.
   function renderWeekTable() {
     weekTbody.innerHTML = "";
     if (!draft) {
@@ -766,6 +889,8 @@
       }
       row.appendChild(el("td", { text: dayRepeatabilityLabel(day) }));
 
+      // Manual override dropdown — always available, not just when a day
+      // has a warning. "Order"/"Eat out" sit above the recipe list.
       var pickSelect = el("select", { className: "day-select" });
       pickSelect.appendChild(el("option", { text: "— unfilled —", attrs: { value: "" } }));
       pickSelect.appendChild(el("option", { text: SPECIAL_LABELS.order, attrs: { value: "__order__" } }));
@@ -799,6 +924,8 @@
     updateConfirmState();
   }
 
+  // Shows/hides the warnings list above the table (fallback tiers used,
+  // unfilled days, quota/ratio mismatches).
   function renderWarnings(warnings) {
     warningListEl.innerHTML = "";
     if (!warnings || warnings.length === 0) { warningListEl.hidden = true; return; }
@@ -806,6 +933,8 @@
     warnings.forEach(function (w) { warningListEl.appendChild(el("li", { text: w })); });
   }
 
+  // Confirm & Log is only enabled once every day has either a dish or an
+  // Order/Eat-out marker — never with a day left blank.
   function updateConfirmState() {
     var ready = draft && draft.days.every(function (d) { return !!d.recipeId || !!d.special; });
     confirmBtn.disabled = !ready;
@@ -845,6 +974,9 @@
     seedInput.value = randomSeed();
   });
 
+  // Builds a fresh draft using whatever seed is currently in the seed
+  // field (filling in a random one if it's blank/invalid), replacing any
+  // existing unconfirmed draft.
   document.getElementById("generate-btn").addEventListener("click", function () {
     if (state.recipes.length === 0) {
       window.alert("Add at least one recipe first.");
@@ -856,6 +988,9 @@
     renderWeekTable();
   });
 
+  // Writes the finalized week into the log (only on explicit confirm, never
+  // on generate/reroll, so rejected drafts don't pollute history), then
+  // locks the button until a new draft is generated.
   confirmBtn.addEventListener("click", function () {
     if (!draft) return;
     draft.days.forEach(function (day) {
@@ -886,6 +1021,9 @@
   historyFrom.addEventListener("change", renderHistory);
   historyTo.addEventListener("change", renderHistory);
 
+  // Renders every logged week (within the optional From/To date filter) as
+  // its own mini table, most recent week first, each day sorted oldest-first
+  // within that week.
   function renderHistory() {
     historyListEl.innerHTML = "";
     var weeks = {};
@@ -952,8 +1090,13 @@
   var carbBadge = document.getElementById("carb-sum-badge");
   var meatBadge = document.getElementById("meat-sum-badge");
 
+  // Working copy of settings edited in the modal — only written back to
+  // state.settings when Save is clicked, so Cancel/close-without-saving
+  // (and Reset, before Save) never mutate the live settings.
   var draftSettings = null;
 
+  // Builds one label+number-input pair for the settings grids, wiring its
+  // input event to both update draftSettings and refresh the validation badges.
   function buildSettingsField(container, key, value, onInput) {
     var field = el("div", { className: "form-field" });
     field.appendChild(el("label", { text: key }));
@@ -967,6 +1110,9 @@
     container.appendChild(field);
   }
 
+  // Clones the given settings into draftSettings and rebuilds every field
+  // in the modal from it — used both when opening the modal (from
+  // state.settings) and when clicking Reset (from defaultSettings()).
   function populateSettingsForm(settings) {
     draftSettings = JSON.parse(JSON.stringify(settings));
 
@@ -990,6 +1136,9 @@
     updateValidationBadges();
   }
 
+  // Live "X / 7" and "X / 100%" badges on the carb quota / meat ratio
+  // sections — flags an invalid total without blocking Save, since
+  // generateWeek() already copes gracefully with either being off.
   function updateValidationBadges() {
     var carbSum = CARB_CATEGORIES.reduce(function (s, c) { return s + (draftSettings.carbQuotas[c] || 0); }, 0);
     var meatSum = MEAT_CATEGORIES.reduce(function (s, c) { return s + (draftSettings.meatRatios[c] || 0); }, 0);
@@ -1004,6 +1153,7 @@
     modal.hidden = false;
   });
   document.getElementById("settings-close-btn").addEventListener("click", function () { modal.hidden = true; });
+  // Clicking the dimmed backdrop (not the card itself) also closes the modal.
   modal.addEventListener("click", function (e) { if (e.target === modal) modal.hidden = true; });
 
   document.getElementById("settings-reset-btn").addEventListener("click", function () {
@@ -1020,6 +1170,9 @@
   });
 
   // ---- init ----
+  // Re-renders every view (items table, ratio breakdown, week table,
+  // history) — called on first load and again after cloud sync adopts a
+  // newer remote copy.
   function renderAllViews() {
     renderRecipesTable();
     renderRatioBreakdown();
