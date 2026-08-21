@@ -1046,7 +1046,7 @@
       heading.style.marginTop = "20px";
       historyListEl.appendChild(heading);
 
-      var table = el("table", { className: "diary-table" });
+      var table = el("table", { className: "diary-table history-table" });
       var thead = el("thead", { html: "<tr><th>Date</th><th>Dish</th><th>Carb</th><th>Meat</th></tr>" });
       var tbody = el("tbody");
       entries.forEach(function (e) {

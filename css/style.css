@@ -761,6 +761,16 @@ a { color: inherit; text-decoration: none; }
 }
 .week-table td { overflow: hidden; text-overflow: ellipsis; }
 .week-table td:nth-child(3) { white-space: normal; overflow-wrap: break-word; }
+
+.history-table {
+  table-layout: fixed;
+  min-width: 600px;
+}
+.history-table th:nth-child(1), .history-table td:nth-child(1) { width: 140px; }
+.history-table th:nth-child(2), .history-table td:nth-child(2) { width: auto; }
+.history-table th:nth-child(3), .history-table td:nth-child(3) { width: 130px; }
+.history-table th:nth-child(4), .history-table td:nth-child(4) { width: 130px; }
+.history-table td:nth-child(2) { white-space: normal; overflow-wrap: break-word; }
 .diary-table th {
   color: var(--text-muted);
   font-weight: 500;
